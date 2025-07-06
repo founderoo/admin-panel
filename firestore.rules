@@ -1,0 +1,26 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAdmin() {
+      return request.auth.uid != null && request.auth.token.email == 'admin@admin.com';
+    }
+
+    match /users/{userId} {
+      // Allow admin to read all user data and modify status
+      // Regular users can only read/write their own data
+      allow read: if request.auth != null;
+      allow update: if request.auth != null && 
+        ((request.auth.uid == userId && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['displayName', 'email', 'phoneNumber', 'fundingUse', 'futureVision', 'noFundingPlan',
+                    'personalExperience', 'problemSolving', 'uniqueSolution', 'validation'])) ||
+        (isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])));
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow delete: if false;
+    }
+
+    match /admin/{document=**} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+  }
+}
